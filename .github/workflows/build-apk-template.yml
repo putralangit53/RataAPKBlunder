@@ -52,33 +52,52 @@ jobs:
         run: |
           python3 - << 'PYEOF'
           import re
+
+          # Fallback aman: kalau input dari dashboard/manual trigger kosong,
+          # JANGAN biarkan namespace/applicationId/versi jadi kosong —
+          # itu yang bikin "manifest:package attribute is not declared".
+          package_name = "${{ inputs.package_name }}".strip() or "id.rataapk.template"
+          version_name = "${{ inputs.version_name }}".strip() or "1.0.0"
+          version_code = "${{ inputs.version_code }}".strip() or "1"
+
+          if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+", package_name):
+              raise SystemExit(
+                  f"package_name tidak valid: '{package_name}'. "
+                  "Harus format seperti com.contoh.app (huruf/angka/underscore, dipisah titik)."
+              )
+          if not version_code.isdigit():
+              raise SystemExit(f"version_code harus angka, dapat: '{version_code}'")
+
           path = "app/build.gradle"
           with open(path) as f:
               content = f.read()
-          content = re.sub(r"namespace '.*?'", "namespace '${{ inputs.package_name }}'", content)
-          content = re.sub(r'applicationId ".*?"', 'applicationId "${{ inputs.package_name }}"', content)
-          content = re.sub(r"versionCode \d+", "versionCode ${{ inputs.version_code }}", content)
-          content = re.sub(r'versionName ".*?"', 'versionName "${{ inputs.version_name }}"', content)
+          content = re.sub(r"namespace '.*?'", f"namespace '{package_name}'", content)
+          content = re.sub(r'applicationId ".*?"', f'applicationId "{package_name}"', content)
+          content = re.sub(r"versionCode \d+", f"versionCode {version_code}", content)
+          content = re.sub(r'versionName ".*?"', f'versionName "{version_name}"', content)
           with open(path, "w") as f:
               f.write(content)
-          print("build.gradle diperbarui")
+          print(f"build.gradle diperbarui -> namespace/applicationId={package_name}, versionName={version_name}, versionCode={version_code}")
           PYEOF
 
       - name: Terapkan nama aplikasi (strings.xml)
         run: |
           python3 - << 'PYEOF'
           import re
+
+          app_label = "${{ inputs.app_label }}".strip() or "RataAPK"
+
           path = "app/src/main/res/values/strings.xml"
           with open(path) as f:
               content = f.read()
           content = re.sub(
               r'<string name="app_name">.*?</string>',
-              '<string name="app_name">${{ inputs.app_label }}</string>',
+              f'<string name="app_name">{app_label}</string>',
               content,
           )
           with open(path, "w") as f:
               f.write(content)
-          print("strings.xml diperbarui")
+          print(f"strings.xml diperbarui -> app_name={app_label}")
           PYEOF
 
       - name: Masukkan website yang diupload (incoming/website.zip)
